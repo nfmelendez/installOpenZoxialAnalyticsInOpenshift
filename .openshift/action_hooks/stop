@@ -1,4 +1,17 @@
 #!/bin/bash
 # The logic to stop your application should be put in this script.
-kill `ps -ef | grep testrubyserver.rb | grep -v grep | awk '{ print $2 }'` > /dev/null 2>&1
+ps aux | grep maven
+
+cd $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Crawler
+./stop.sh
+
+cd $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Fanpage-UI
+./stop.sh 
+
+echo "Verifing that there aren't any process up"
+ps aux | grep maven
+
+echo "enforce termination, it assumes that you only use maven in your server for this project ;)"
+kill -9 `ps aux | grep maven | awk '{print $2}' | xargs`
+
 exit 0

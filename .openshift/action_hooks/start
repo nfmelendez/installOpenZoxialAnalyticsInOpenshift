@@ -2,4 +2,49 @@
 # The logic to start up your application should be put in this
 # script. The application will work only if it binds to
 # $OPENSHIFT_INTERNAL_IP:8080
-nohup $OPENSHIFT_REPO_DIR/diy/testrubyserver.rb $OPENSHIFT_INTERNAL_IP $OPENSHIFT_REPO_DIR/diy > $OPENSHIFT_LOG_DIR/server.log 2>&1 &
+#nohup $OPENSHIFT_REPO_DIR/diy/testrubyserver.rb $OPENSHIFT_INTERNAL_IP $OPENSHIFT_REPO_DIR/diy > $OPENSHIFT_LOG_DIR/server.log 2>&1 &
+
+#mysql -u $OPENSHIFT_DB_USERNAME < $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/SqlSchema/schema.sql
+
+echo "Start dynamic configuration of Open.Zoxial.Analytics"
+
+sed -i "s,<host>0.0.0.0</host>,<host>$OPENSHIFT_INTERNAL_IP</host>," $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Fanpage-UI/pom.xml
+
+crawlerConfig=$OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Crawler/config/config.properties
+sed -i "s,mysql.host=127.0.0.1,mysql.host=$OPENSHIFT_INTERNAL_IP," $crawlerConfig
+sed -i "s,mysql.user=root,mysql.user=$OPENSHIFT_DB_USERNAME," $crawlerConfig
+sed -i "s,mysql.pass=280884,mysql.pass=$OPENSHIFT_DB_PASSWORD," $crawlerConfig
+#sed -i "s,mysql.database=zoxialanalytics,mysql.database=$OPENSHIFT_APP_NAME," $crawlerConfig
+
+fanpageUI=$OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Fanpage-UI/config/config.properties
+
+sed -i "s,mysql.host=127.0.0.1,mysql.host=$OPENSHIFT_INTERNAL_IP," $fanpageUI
+sed -i "s,mysql.user=root,mysql.user=$OPENSHIFT_DB_USERNAME," $fanpageUI
+sed -i "s,mysql.pass=280884,mysql.pass=$OPENSHIFT_DB_PASSWORD," $fanpageUI
+#sed -i "s,mysql.database=zoxialanalytics,mysql.database=$OPENSHIFT_APP_NAME," $fanpageUI
+
+
+if [ -f $OPENSHIFT_DATA_DIR/dbCreatedFlag ]
+  then
+    echo "Database structure already created because dbCreatedFlag exists"
+  else
+    echo "Start creating the  database structure"
+    mysql -u "$OPENSHIFT_DB_USERNAME" --password="$OPENSHIFT_DB_PASSWORD" -h "$OPENSHIFT_DB_HOST" < $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/SqlSchema/schema.sql
+    touch $OPENSHIFT_DATA_DIR/dbCreatedFlag
+fi
+
+mkdir -p $OPENSHIFT_DATA_DIR/m2/repository
+echo -e "<settings><localRepository>$OPENSHIFT_DATA_DIR/m2/repository</localRepository>\n</settings>\n" > $OPENSHIFT_DATA_DIR/settings.xml
+
+echo "Starting Maven for Crawler"
+cd $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Crawler
+chmod 777 ./start.sh
+chmod +x ./stop.sh
+./start.sh "-s $OPENSHIFT_DATA_DIR/settings.xml"
+
+echo "Starting maven for Fanpage-UI"
+cd $OPENSHIFT_REPO_DIR/diy/zoxial/Zoxial.Analytics/Fanpage-UI
+chmod 777 ./start.sh
+chmod +x ./stop.sh
+./start.sh "-s $OPENSHIFT_DATA_DIR/settings.xml"
+
